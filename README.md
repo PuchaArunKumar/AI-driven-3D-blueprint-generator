@@ -37,7 +37,7 @@ An intelligent system that transforms natural language prompts into customizable
 | Backend        | Python, PyTorch, HuggingFace Transformers |
 | Generation     | 3D-GAN, DreamFusion, CLIPMesh, MeshCNN    |
 | CAD & Modeling | Blender API, FreeCAD, OpenSCAD            |
-| UI             | Streamlit / Flask + Three.js              |
+| UI             | Streamlit                                 |
 | Rendering      | Trimesh, PyTorch3D                        |
 
 ---
