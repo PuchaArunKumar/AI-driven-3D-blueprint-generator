@@ -1,0 +1,11 @@
+digraph {
+	A [label="Prompt Understanding"]
+	B [label="Image Generation"]
+	C [label="Image to Voxel Conversion"]
+	D [label="Integration with CAD Applications"]
+	E [label="Rendering & Visualization"]
+	A -> B
+	B -> C
+	C -> D
+	D -> E
+}
