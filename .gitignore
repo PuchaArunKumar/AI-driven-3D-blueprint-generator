@@ -1,0 +1,52 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# third-party source fetched by scripts/install_triposr.py
+backend/vendor/
+
+# node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# generated artefacts
+storage/images/
+storage/models/
+storage/exports/
+storage/tmp/
+storage/logs/
+storage/*.db
+storage/*.db-journal
+
+# Demo assets are committed deliberately - see storage/demo/README.md.
+# Only the viewer model and the seeded exports are kept; anything a user
+# exports on top of a demo from the UI stays local.
+!storage/demo/
+storage/demo/*/exports/*.obj
+storage/demo/*/exports/*.ply
+storage/demo/*/exports/*.blend
+storage/demo/*/exports/*.gltf
+
+# os
+Thumbs.db
+.DS_Store
+
+# local dev overrides
+.env.local
+frontend/.env.local
+
+# Personal research documents. The GitHub repository is public and the
+# copyright form carries a signature and contact details, so these are kept
+# local by default. Remove these lines if you want them published.
+/*.docx
+/*.pdf
+/*.pptx

@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# AI-Driven 3D Blueprint Generator - backend dependencies
+#
+# PyTorch is intentionally NOT pinned here: the right wheel depends on whether
+# you want CPU or CUDA. Install it first, then this file.
+#
+#   CUDA 12.6 (NVIDIA GPU):
+#     pip install --index-url https://download.pytorch.org/whl/cu126 torch torchvision
+#   CPU only:
+#     pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+#
+# Without torch + diffusers the app still runs: local image generation reports
+# itself unavailable, and the demo projects, viewer, blueprint, mesh tools and
+# every export path continue to work.
+# ---------------------------------------------------------------------------
+
+# --- web framework ---
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.32,<1.0
+pydantic>=2.9,<3.0
+pydantic-settings>=2.6,<3.0
+python-multipart>=0.0.12
+httpx>=0.27,<1.0
+
+# --- persistence ---
+SQLAlchemy>=2.0,<3.0
+
+# --- geometry and imaging ---
+numpy>=1.26
+scipy>=1.13
+scikit-image>=0.24
+trimesh>=4.5
+Pillow>=10.4
+
+# Quadric decimation backend for trimesh. Without it the mesh processor's
+# "target faces" control silently does nothing.
+fast-simplification>=0.1.7
+
+# --- system introspection ---
+psutil>=6.0
+
+# --- local Stable Diffusion (optional but recommended) ---
+diffusers>=0.31
+transformers>=4.44
+accelerate>=1.0
+safetensors>=0.4
+
+# --- background removal (optional, recommended) ---
+# Text-to-image models rarely honour "plain white background", and a vignetted
+# wall or studio floor defeats colour-based segmentation. rembg's matting model
+# separates the product reliably. Without it the pipeline falls back to a
+# classical method that works well on clean backgrounds and poorly on busy ones.
+# The ~176 MB model downloads on first use; failure is handled gracefully.
+rembg[cpu]>=2.0.60
+
+# --- tests ---
+pytest>=8.3
+pytest-asyncio>=0.24

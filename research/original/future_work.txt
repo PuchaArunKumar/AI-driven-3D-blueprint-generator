@@ -1,0 +1,4 @@
+Future Work
+Add support for direct CAD model export.
+Enhance voxel optimization for more detailed 3D models.
+Implement real-time visualization of the generated 3D designs.

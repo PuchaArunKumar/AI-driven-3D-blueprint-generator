@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-ink-950 text-slate-200 font-sans antialiased;
+  }
+
+  /* Focus ring that stays visible against the dark chrome. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-blueprint-400 ring-offset-2 ring-offset-ink-950;
+  }
+
+  ::selection {
+    @apply bg-blueprint-500/30 text-white;
+  }
+
+  /* Slim scrollbars so panels do not lose width to chrome. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-ink-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-700 rounded-full border-2 border-solid border-ink-900;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-600;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-ink-900/80 border border-ink-700/70 rounded-xl backdrop-blur-sm;
+  }
+
+  .panel-head {
+    @apply px-4 py-3 border-b border-ink-700/70 flex items-center justify-between gap-3;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm
+           font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-blueprint-500 text-ink-950 hover:bg-blueprint-400;
+  }
+
+  .btn-ghost {
+    @apply btn border border-ink-600 text-slate-300 hover:bg-ink-800 hover:text-white;
+  }
+
+  .btn-subtle {
+    @apply btn bg-ink-800 text-slate-300 hover:bg-ink-700 hover:text-white;
+  }
+
+  .btn-danger {
+    @apply btn border border-signal-err/40 text-signal-err hover:bg-signal-err/10;
+  }
+
+  .field {
+    @apply w-full rounded-lg bg-ink-950/70 border border-ink-700 px-3 py-2 text-sm
+           text-slate-100 placeholder:text-slate-500
+           focus:border-blueprint-500 focus:outline-none;
+  }
+
+  .label {
+    @apply block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1
+           text-[11px] font-medium border;
+  }
+
+  .stat-key {
+    @apply text-[11px] uppercase tracking-wider text-slate-500;
+  }
+
+  .stat-val {
+    @apply font-mono text-sm text-slate-100;
+  }
+}
+
+/* The blueprint grid backdrop, used by the hero and the technical view. */
+.grid-bg {
+  background-image: var(--tw-grid, none),
+    linear-gradient(rgba(76, 201, 240, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(76, 201, 240, 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.grid-bg-fine {
+  background-image: linear-gradient(rgba(76, 201, 240, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(76, 201, 240, 0.05) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
