@@ -1,5 +1,5 @@
 import { Check, Circle, Download, Loader2, Lock } from 'lucide-react'
-import { api } from '../lib/api'
+import { STATIC_MODE, api } from '../lib/api'
 import type { CapabilityInfo, ExportFormat, Project } from '../lib/types'
 
 interface Props {
@@ -34,7 +34,9 @@ export default function ExportPanel({ project, capabilities, busy, onExport }: P
         <div>
           <h3 className="text-sm font-semibold text-white">Generated Assets</h3>
           <p className="text-[11px] text-slate-500">
-            Only formats this installation can actually produce are offered
+            {STATIC_MODE
+              ? 'Pre-generated files only - exporting new formats needs the local backend'
+              : 'Only formats this installation can actually produce are offered'}
           </p>
         </div>
         {hasModel && ready.length > 0 && (
@@ -70,13 +72,17 @@ export default function ExportPanel({ project, capabilities, busy, onExport }: P
               <div className="flex-1 min-w-0">
                 <p
                   className={`text-sm font-semibold ${
-                    isAvailable ? 'text-slate-200' : 'text-slate-600'
+                    isAvailable || isExported ? 'text-slate-200' : 'text-slate-600'
                   }`}
                 >
                   {format.label}
                 </p>
                 <p className="text-[11px] text-slate-500 truncate">
-                  {isAvailable ? format.note : reason || 'Not available on this machine.'}
+                  {isAvailable || (STATIC_MODE && isExported)
+                    ? format.note
+                    : STATIC_MODE
+                      ? 'Not in this demo snapshot - export it with the local backend.'
+                      : reason || 'Not available on this machine.'}
                 </p>
               </div>
 
@@ -99,7 +105,9 @@ export default function ExportPanel({ project, capabilities, busy, onExport }: P
                   Export
                 </button>
               ) : (
-                <span className="chip border-ink-700 text-slate-600 shrink-0">unavailable</span>
+                <span className="chip border-ink-700 text-slate-600 shrink-0">
+                  {STATIC_MODE ? 'backend only' : 'unavailable'}
+                </span>
               )}
             </li>
           )

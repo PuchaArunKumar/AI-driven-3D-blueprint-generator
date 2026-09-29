@@ -13,6 +13,9 @@ Usage (from the ``backend`` directory)::
 
 Each demo is marked ``is_demo`` so the UI can label it "Demo Asset" and never
 present it as something the visitor just generated.
+
+The catalogue itself lives in :mod:`app.demo_catalog`, which the backend also
+uses on startup to register rows for demo assets that are already on disk.
 """
 
 from __future__ import annotations
@@ -22,7 +25,6 @@ import contextlib
 import logging
 import sys
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 
 # Allow running as `python scripts/seed_demo.py` from the backend directory.
@@ -30,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import get_settings  # noqa: E402
 from app.db import ProjectRow, init_db, session_scope  # noqa: E402
+from app.demo_catalog import DEMOS, Demo  # noqa: E402
 from app.errors import BlueprintError  # noqa: E402
 from app.jobs import JobContext, JobRecord, manager  # noqa: E402
 from app.logging_conf import configure_logging  # noqa: E402
@@ -57,66 +60,6 @@ CARVING_VIEWS = [
     ViewName.RIGHT,
     ViewName.TOP,
 ]
-
-
-@dataclass(frozen=True)
-class Demo:
-    slug: str
-    name: str
-    prompt: str
-    seed: int
-    #: Deterministic id so re-seeding replaces rather than duplicates.
-    uuid: str
-    #: 3D backend. Vehicles and organic shapes need the learned model; a
-    #: silhouette hull turns them into a slab because diffusion models return
-    #: three-quarter hero shots rather than the elevations carving requires.
-    threed_provider: str | None = None
-
-
-DEMOS: tuple[Demo, ...] = (
-    Demo(
-        slug="car",
-        name="Futuristic Concept Car",
-        prompt=(
-            "A futuristic aerodynamic electric sports car, smooth silver body panels, "
-            "light grey, 4.2 m long, 1.9 m wide, 1.2 m tall"
-        ),
-        seed=1201,
-        uuid="d0000000-0000-4000-8000-000000000001",
-        threed_provider="triposr",
-    ),
-    Demo(
-        slug="wheelchair",
-        name="Assistive Wheelchair Tray",
-        prompt=(
-            "A lightweight ergonomic wheelchair tray attachment in matte black ABS, "
-            "45 cm x 30 cm x 3 cm, 3D printable, waterproof, for outdoor use"
-        ),
-        seed=2202,
-        uuid="d0000000-0000-4000-8000-000000000002",
-    ),
-    Demo(
-        slug="chair",
-        name="Modern Oak Chair",
-        prompt=(
-            "A modern minimalist oak dining chair with a solid seat and tapered legs, "
-            "45 cm x 45 cm x 90 cm, CNC machined"
-        ),
-        seed=3303,
-        uuid="d0000000-0000-4000-8000-000000000003",
-    ),
-    Demo(
-        slug="wearable",
-        name="Smart Wearable Band",
-        prompt=(
-            "A smart wearable fitness band with a rounded silicone strap and a compact "
-            "display module, light grey, 250 mm x 25 mm x 12 mm, injection moulded"
-        ),
-        seed=4404,
-        uuid="d0000000-0000-4000-8000-000000000004",
-        threed_provider="triposr",
-    ),
-)
 
 
 class ConsoleContext(JobContext):

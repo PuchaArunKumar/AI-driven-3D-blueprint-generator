@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Cpu, Github, Menu, X } from 'lucide-react'
-import { api } from '../lib/api'
+import { Cpu, Github, Globe, Menu, X } from 'lucide-react'
+import { STATIC_MODE, api } from '../lib/api'
 import type { SystemStatus } from '../lib/types'
 
 const NAV = [
+  { to: '/generate', label: 'Text → 3D' },
   { to: '/studio', label: 'Design Studio' },
   { to: '/gallery', label: 'Gallery' },
   { to: '/settings', label: 'Settings' },
@@ -38,6 +39,8 @@ export default function Layout() {
   const location = useLocation()
 
   useEffect(() => {
+    // The hosted demo has no backend to ask; its badge is static (below).
+    if (STATIC_MODE) return
     api.systemStatus().then(setStatus).catch(() => setStatus(null))
   }, [])
 
@@ -83,6 +86,16 @@ export default function Layout() {
           <div className="flex-1 md:hidden" />
 
           {/* Live capability badge - reflects the real backend state. */}
+          {STATIC_MODE && (
+            <Link
+              to="/settings"
+              className="hidden sm:flex chip border-blueprint-500/40 text-blueprint-400 bg-blueprint-500/10"
+              title="Hosted demo with no backend - Text → 3D runs in your browser (WebAssembly)"
+            >
+              <Globe className="w-3 h-3" />
+              In-browser
+            </Link>
+          )}
           {status && (
             <Link
               to="/settings"
@@ -141,10 +154,11 @@ export default function Layout() {
         <div className="mx-auto max-w-[1600px] px-4 sm:px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
           <p>
             AI-Driven 3D Blueprint Generator
-            {status && <span className="font-mono"> v{status.version}</span>} - research
+            {status && <span className="font-mono"> v{status.version}</span>}
+            {STATIC_MODE && <span className="font-mono"> (hosted static demo)</span>} - research
             prototype for accessible, personalised product design.
           </p>
-          <p className="font-mono">Text → Image → 3D → GLB → BLEND</p>
+          <p className="font-mono">Text → Image → 3D → GLB → BLEND · Text → 3D in-browser</p>
         </div>
       </footer>
     </div>

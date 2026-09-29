@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from app.errors import GenerationError
 from app.schemas import DesignSpec, ViewName
 
 ProgressCallback = Callable[[float, str], None]
@@ -121,6 +122,49 @@ class ThreeDGenerator(Provider):
         """Reconstruct a 3D model from ``images``."""
 
 
+class TextTo3DGenerator(ThreeDGenerator):
+    """Generates a 3D asset straight from the prompt text - no views involved.
+
+    It is still a :class:`ThreeDGenerator` so it lives in the same registry
+    slot, shows up in the same provider list and fills the same
+    "3D Reconstruction" stage. The orchestrator checks for this class and calls
+    :meth:`generate_from_text` with the project's raw prompt instead of
+    handing it images.
+    """
+
+    @abc.abstractmethod
+    def generate_from_text(
+        self,
+        prompt: str,
+        output_dir: Path,
+        *,
+        spec: DesignSpec | None = None,
+        seed: int | None = None,
+        progress: ProgressCallback = _noop_progress,
+    ) -> ModelResult:
+        """Generate a model for ``prompt``; ``spec`` supplies the physical size."""
+
+    def generate(
+        self,
+        images: list[ImageResult],
+        output_dir: Path,
+        *,
+        spec: DesignSpec | None = None,
+        resolution: int = 128,
+        progress: ProgressCallback = _noop_progress,
+    ) -> ModelResult:
+        """Images carry nothing this provider can use, and they lack the prompt."""
+        raise GenerationError(
+            f"{self.label} generates from the prompt text, not from view images.",
+            hint="Run it through the pipeline, which passes the project's prompt.",
+        )
+
+
+def is_text_conditioned(provider: object) -> bool:
+    """Whether ``provider`` builds its model from text rather than images."""
+    return isinstance(provider, TextTo3DGenerator)
+
+
 class MeshProcessor(Provider):
     """Cleans and repairs a generated mesh."""
 
@@ -137,9 +181,14 @@ class MeshProcessor(Provider):
         fill_holes: bool = True,
         remove_duplicates: bool = True,
         recompute_normals: bool = True,
+        align_axes: bool = True,
         progress: ProgressCallback = _noop_progress,
     ) -> ModelResult:
-        """Return a cleaned copy of the mesh at ``model_path``."""
+        """Return a cleaned copy of the mesh at ``model_path``.
+
+        ``align_axes=False`` keeps the incoming orientation - for generators
+        whose output is already in the canonical frame (front faces +Z).
+        """
 
 
 class CADExporter(Provider):

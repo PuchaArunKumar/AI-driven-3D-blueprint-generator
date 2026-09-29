@@ -14,7 +14,7 @@ from app import __version__
 from app.config import get_settings
 from app.errors import NotFoundError
 from app.jobs import manager
-from app.providers.registry import get_registry
+from app.providers.registry import TEXT_FALLBACK, get_registry
 from app.schemas import CapabilityInfo, HardwareInfo, SystemStatus
 from app.storage import ensure_within, raw_exports, repository, validate_project_id
 
@@ -100,9 +100,11 @@ def system_status() -> SystemStatus:
 
     has_image = any(p.available for p in providers if p.kind == "image")
     has_threed = any(p.available for p in providers if p.kind == "threed")
+    # The text-to-3D model runs the whole pipeline without any image provider.
+    has_text_to_3d = any(p.available for p in providers if p.name == TEXT_FALLBACK)
 
     return SystemStatus(
-        status="ok" if (has_image and has_threed) else "degraded",
+        status="ok" if (has_image and has_threed) or has_text_to_3d else "degraded",
         version=__version__,
         hardware=detect_hardware(),
         capabilities=detect_capabilities(),

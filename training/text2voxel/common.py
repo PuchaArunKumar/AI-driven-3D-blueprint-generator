@@ -1,6 +1,6 @@
 """Shared definitions for the Text2Voxel training kernels.
 
-Kaggle script kernels are single files, so ``tools/build_kernels.py`` inlines
+Kaggle script kernels are single files, so ``training/text2voxel/build_kernels.py`` inlines
 this module into each kernel's generated ``kernel.py``. Anything the browser or
 the backend must reproduce exactly (text embedding, caption templates, colour
 palette) is defined here once.

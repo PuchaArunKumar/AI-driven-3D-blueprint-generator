@@ -20,6 +20,7 @@ from app.providers.image.hosted import OpenAIImageProvider, StabilityImageProvid
 from app.providers.mesh.trimesh_processor import TrimeshProcessor
 from app.providers.threed.hosted import HostedThreeDProvider
 from app.providers.threed.shap_e import ShapEProvider
+from app.providers.threed.text2voxel import Text2VoxelProvider
 from app.providers.threed.triposr import TripoSRProvider
 from app.providers.threed.visual_hull import VisualHullProvider
 from app.schemas import ProviderInfo
@@ -33,6 +34,12 @@ logger = logging.getLogger(__name__)
 #: most subjects, which carve into a near-cube. The hull stays as the
 #: always-available fallback.
 THREED_PREFERENCE = ("triposr", "shap_e", "visual_hull")
+
+#: The text-conditioned provider "auto" falls back to when there are no views
+#: to reconstruct from and no image provider that could render them. It is not
+#: in the preference list above: with views available, a reconstruction of
+#: those views is what the user asked for.
+TEXT_FALLBACK = "text2voxel"
 
 #: Formats produced by trimesh alone - always available.
 TRIMESH_FORMATS = ("glb", "gltf", "obj", "ply", "stl")
@@ -75,6 +82,11 @@ class ProviderRegistry:
                 endpoint=settings.trellis_endpoint,
                 api_key=settings.trellis_api_key,
             ),
+            "text2voxel": Text2VoxelProvider(
+                model_dir=settings.text2voxel_path,
+                steps=settings.text2voxel_steps,
+                guidance=settings.text2voxel_guidance,
+            ),
         }
         self._mesh: MeshProcessor = TrimeshProcessor()
         self._cad: dict[str, CADExporter] = {
@@ -93,10 +105,21 @@ class ProviderRegistry:
             )
         return provider
 
-    def threed_provider(self, name: str | None = None) -> ThreeDGenerator:
+    def threed_provider(self, name: str | None = None, *,
+                        allow_text_fallback: bool = False,
+                        image_provider: str | None = None) -> ThreeDGenerator:
+        """Resolve a 3D provider by name, or pick one for "auto".
+
+        ``allow_text_fallback`` is set by callers that have no views to
+        reconstruct from: "auto" then chooses the text-to-3D provider when the
+        image provider that would render the views (``image_provider``, else
+        the configured one) cannot run.
+        """
         key = name or self.settings.threed_provider
         if key == "auto":
-            return self._best_threed_provider()
+            return self._best_threed_provider(
+                allow_text_fallback=allow_text_fallback, image_provider=image_provider
+            )
 
         provider = self._threed.get(key)
         if provider is None:
@@ -106,8 +129,21 @@ class ProviderRegistry:
             )
         return provider
 
-    def _best_threed_provider(self) -> ThreeDGenerator:
+    def _image_provider_available(self, name: str | None) -> bool:
+        provider = self._image.get(name or self.settings.image_provider)
+        return provider is not None and provider.availability().available
+
+    def _best_threed_provider(self, *, allow_text_fallback: bool = False,
+                              image_provider: str | None = None) -> ThreeDGenerator:
         """Pick the best 3D backend that can actually run right now."""
+        if allow_text_fallback and not self._image_provider_available(image_provider):
+            text = self._threed[TEXT_FALLBACK]
+            if text.availability().available:
+                logger.info(
+                    "Auto-selected 3D provider: %s (no image provider can render views, "
+                    "so the model is generated from the prompt text)", TEXT_FALLBACK,
+                )
+                return text
         for name in THREED_PREFERENCE:
             provider = self._threed.get(name)
             if provider is not None and provider.availability().available:

@@ -1,0 +1,96 @@
+# Build the static demo and publish it to GitHub Pages.
+#
+# The hosted site has no backend. The Gallery reads a read-only snapshot of the
+# demo projects (backend/scripts/export_static_site.py), and the Text -> 3D page
+# runs Text2Voxel-64 in the visitor's browser from the model files fetched here
+# (models/manifest.json: the text2voxel release assets + MiniLM from Hugging Face).
+#
+# One-time setup: repository Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions". The site is then served at
+# https://<owner>.github.io/AI-driven-3D-blueprint-generator/
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. A newer push queues behind a running deploy rather
+# than cancelling it half-way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fails fast, with a clear message, if Pages is not enabled for the repo.
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Exactly the list in export_static_site.py's docstring - no torch,
+      # diffusers, rembg, FastAPI or SQLAlchemy.
+      - name: Install static-export dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "numpy>=1.26" "scipy>=1.13" "scikit-image>=0.24" "trimesh>=4.5" \
+            "fast-simplification>=0.1.7" "Pillow>=10.4" "pydantic>=2.9,<3.0" \
+            "pydantic-settings>=2.6,<3.0"
+
+      - name: Export the demo snapshot
+        run: python backend/scripts/export_static_site.py --out frontend/public/static-api
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Fails the build if any file is missing or fails its sha256.
+      - name: Fetch model files
+        run: node frontend/scripts/fetch-models.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # For a fork, set VITE_BASE to "/<your-repo-name>/" (or "/" for a
+      # <user>.github.io repository).
+      - name: Build (static mode)
+        working-directory: frontend
+        env:
+          VITE_STATIC: 'true'
+          VITE_BASE: /AI-driven-3D-blueprint-generator/
+        run: npm run build
+
+      # 404.html SPA fallback, .nojekyll, and a hard check that the models made it in.
+      - name: Post-build
+        run: node frontend/scripts/postbuild.mjs --strict
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -19,7 +19,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ImageProviderName = Literal["diffusers", "openai", "stability"]
-ThreeDProviderName = Literal["auto", "visual_hull", "triposr", "shap_e", "trellis_api"]
+ThreeDProviderName = Literal[
+    "auto", "visual_hull", "triposr", "shap_e", "trellis_api", "text2voxel"
+]
 
 
 def _default_blender_path() -> str:
@@ -130,6 +132,13 @@ class Settings(BaseSettings):
     shap_e_steps: int = 64
     shap_e_guidance: float = 3.0
 
+    # local text-to-3D (Text2Voxel-64) - installed by scripts/install_text2voxel.py.
+    # A relative path is taken from the repository root. Steps/guidance left
+    # unset use the values the model was trained with (its meta.json).
+    text2voxel_path: Path = REPO_ROOT / "backend" / "models" / "text2voxel"
+    text2voxel_steps: int | None = Field(default=None, ge=1, le=1000)
+    text2voxel_guidance: float | None = Field(default=None, ge=0.0, le=20.0)
+
     # hosted image-to-3D provider (e.g. a self-hosted TRELLIS/SLAT endpoint)
     trellis_endpoint: str = ""
     trellis_api_key: str = ""
@@ -148,6 +157,18 @@ class Settings(BaseSettings):
     @classmethod
     def _expand(cls, value: str | Path) -> Path:
         return Path(value).expanduser().resolve()
+
+    @field_validator("text2voxel_path", mode="before")
+    @classmethod
+    def _repo_relative(cls, value: str | Path) -> Path:
+        path = Path(value).expanduser()
+        return path if path.is_absolute() else (REPO_ROOT / path).resolve()
+
+    @field_validator("text2voxel_steps", "text2voxel_guidance", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        # ``TEXT2VOXEL_STEPS=`` in a .env file means "use the model's default".
+        return None if isinstance(value, str) and not value.strip() else value
 
     # ------------------------------------------------------------- derived
     def model_post_init(self, __context: object) -> None:
@@ -189,6 +210,9 @@ class Settings(BaseSettings):
             "image_height": self.image_height,
             "voxel_resolution": self.voxel_resolution,
             "triposr_path": str(self.triposr_path),
+            "text2voxel_path": str(self.text2voxel_path),
+            "text2voxel_steps": self.text2voxel_steps,
+            "text2voxel_guidance": self.text2voxel_guidance,
             "blender_path": self.blender_path,
             "freecad_path": self.freecad_path,
             "storage_dir": str(self.storage_dir),

@@ -27,7 +27,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# `common` is inlined above this line by tools/build_kernels.py.
+# `common` is inlined above this line by training/text2voxel/build_kernels.py.
 
 OUT = Path(os.environ.get("T2V_OUT", "/kaggle/working"))
 MODEL_DIR = OUT / "model"
@@ -41,9 +41,18 @@ SMOKE = os.environ.get("T2V_SMOKE") == "1"  # seconds-long run for local shape c
 # --- orientation: RAW axes -> canonical (x right, y up, z front) -----------
 # perm lists which raw axis becomes canonical x, y, z; flip lists canonical
 # axes to reverse afterwards. Decided from K1's montages.
+#
+# Text2Shape: the NRRD header maps raw axes (0, 1, 2) to ShapeNet world
+# (y, z, x); y is up and chair backs sit at +z, so the front faces -z. A 180
+# degree turn about y gives x = -raw2, y = raw0, z = -raw1 (a proper
+# rotation, never a mirror).
+# ModelNet40 (OFF coordinates): z is up. x = raw0, y = raw2, z = -raw1 is a
+# proper rotation; azimuth is inconsistent between ModelNet classes in the
+# source data (cars run along x, some airplanes sit diagonally), which the
+# model card records as a limitation.
 ORIENT = {
-    "t2s": {"perm": (0, 1, 2), "flip": ()},
-    "mn": {"perm": (0, 1, 2), "flip": ()},
+    "t2s": {"perm": (2, 0, 1), "flip": (0, 2)},
+    "mn": {"perm": (0, 2, 1), "flip": (2,)},
 }
 
 # --- budgets ----------------------------------------------------------------
@@ -123,10 +132,42 @@ class ShapeBank:
         val_t2s = [stable_hash(m["model"]) % 20 == 0 for m in self.t2s_models]
         val_mn = [stable_hash(m["file"]) % 20 == 0 for m in self.mn_meta]
         self.is_val = torch.tensor(val_t2s + val_mn, device=DEVICE)
+        self.shift = self._centring_shifts()
         self.train_index = torch.nonzero(~self.is_val).squeeze(1)
         self.val_index = torch.nonzero(self.is_val).squeeze(1)
         log(f"shapes: t2s {self.n_t2s:,}  modelnet {self.n_mn:,}  "
             f"train {len(self.train_index):,}  val {len(self.val_index):,}")
+
+    def _centring_shifts(self) -> torch.Tensor:
+        """Integer roll per shape (raw axes) that centres its bounding box.
+
+        Text2Shape grids place every object against the minimum corner while
+        ModelNet shapes are centred; mixing the two would teach the model two
+        placements. Rolling is lossless because the margins are empty.
+        """
+        shifts = torch.zeros(len(self.occ), 3, dtype=torch.long, device=DEVICE)
+        coords = torch.arange(RES, device=DEVICE)
+        for chunk in torch.arange(len(self.occ), device=DEVICE).split(256):
+            occ = unpack(self.occ[chunk]) > 0
+            for axis in range(3):
+                other = tuple(a for a in (1, 2, 3) if a != axis + 1)
+                present = occ.any(dim=other)  # [B, RES]
+                lo = torch.where(present, coords, RES).min(1).values
+                hi = torch.where(present, coords, -1).max(1).values
+                size = (hi - lo + 1).clamp_min(0)
+                shifts[chunk, axis] = (RES - size) // 2 - lo
+        empty = shifts.abs().max(1).values > RES
+        shifts[empty] = 0
+        log(f"centring: mean |shift| t2s {shifts[:self.n_t2s].abs().float().mean().item():.1f} "
+            f"modelnet {shifts[self.n_t2s:].abs().float().mean().item():.1f} voxels")
+        return shifts
+
+    def _centre(self, volume: torch.Tensor, index: torch.Tensor) -> torch.Tensor:
+        """Roll each [..., X, Y, Z] raw-frame volume by its shape's shift."""
+        out = torch.empty_like(volume)
+        for row, shape in enumerate(index.tolist()):
+            out[row] = torch.roll(volume[row], tuple(self.shift[shape].tolist()), dims=(-3, -2, -1))
+        return out
 
     def batch(self, index: torch.Tensor, colour_id: torch.Tensor | None = None,
               mirror: torch.Tensor | None = None) -> torch.Tensor:
@@ -136,7 +177,7 @@ class ShapeBank:
         (0 = neutral, 1.. = palette); Text2Shape rows keep their own colour.
         """
         index = index.to(DEVICE)
-        occ = unpack(self.occ[index])  # raw axes
+        occ = self._centre(unpack(self.occ[index]), index)  # raw axes, centred
         out = torch.zeros(len(index), 4, RES, RES, RES, device=DEVICE)
         is_t2s = index < self.n_t2s
         if is_t2s.any():
@@ -144,7 +185,7 @@ class ShapeBank:
             occ_t = orient(occ[rows], "t2s")
             col = self.col[index[rows]].float() / 255.0
             col = F.interpolate(col, scale_factor=2, mode="nearest")
-            col = orient(col, "t2s")
+            col = orient(self._centre(col, index[rows]), "t2s")
             out[rows, 0] = occ_t
             out[rows, 1:] = col * occ_t.unsqueeze(1)
         if (~is_t2s).any():

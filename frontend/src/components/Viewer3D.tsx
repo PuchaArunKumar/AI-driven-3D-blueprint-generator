@@ -464,7 +464,8 @@ export default function Viewer3D({ url, stats, placeholder, className = '' }: Pr
       {/* ------------------------------------------------------ toolbar */}
       {url && !loadError && (
         <>
-          <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+          {/* Bounded on phones so it wraps instead of running under the right-hand buttons. */}
+          <div className="absolute top-3 left-3 right-[8.5rem] sm:right-auto flex flex-wrap gap-1.5">
             <button
               className={toolButton(mode === 'solid')}
               onClick={() => setMode('solid')}
@@ -544,7 +545,7 @@ export default function Viewer3D({ url, stats, placeholder, className = '' }: Pr
           </div>
 
           {/* lighting + environment */}
-          <div className="absolute bottom-3 left-3 flex items-center gap-3 bg-ink-900/85 backdrop-blur border border-ink-700 rounded-lg px-3 py-2">
+          <div className="absolute bottom-3 left-3 right-3 sm:right-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-ink-900/85 backdrop-blur border border-ink-700 rounded-lg px-3 py-2">
             <label className="flex items-center gap-2 text-[11px] text-slate-400">
               <Lightbulb className="w-3.5 h-3.5" />
               <input
@@ -587,8 +588,9 @@ export default function Viewer3D({ url, stats, placeholder, className = '' }: Pr
           </div>
 
           {/* live model statistics */}
+          {/* Hidden on phones, where it would cover the lighting bar. */}
           {stats && (
-            <div className="absolute bottom-3 right-3 bg-ink-900/85 backdrop-blur border border-ink-700 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-400 space-y-0.5 max-w-[45%]">
+            <div className="hidden sm:block absolute bottom-3 right-3 bg-ink-900/85 backdrop-blur border border-ink-700 rounded-lg px-3 py-2 font-mono text-[11px] text-slate-400 space-y-0.5 max-w-[45%]">
               <div className="flex justify-between gap-4">
                 <span>tris</span>
                 <span className="text-slate-200">{stats.triangles.toLocaleString()}</span>

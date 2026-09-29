@@ -247,6 +247,8 @@ class ThreeDGenerationRequest(BaseModel):
     project_id: str
     provider: str | None = None
     resolution: int | None = Field(default=None, ge=32, le=384)
+    #: Used by text-conditioned providers only; random (and recorded) when unset.
+    seed: int | None = Field(default=None, ge=0, le=2**31 - 1)
 
 
 class MeshProcessRequest(BaseModel):

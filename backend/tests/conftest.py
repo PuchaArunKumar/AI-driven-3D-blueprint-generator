@@ -23,6 +23,10 @@ os.environ["LOG_LEVEL"] = "WARNING"
 os.environ["OPENAI_API_KEY"] = ""
 os.environ["STABILITY_API_KEY"] = ""
 os.environ["TRELLIS_ENDPOINT"] = ""
+# Whether the Text2Voxel model happens to be installed must not change what
+# THREED_PROVIDER=auto resolves to in the API tests. Tests that exercise the
+# real model point a provider at backend/models/text2voxel explicitly.
+os.environ["TEXT2VOXEL_PATH"] = str(_TEST_ROOT / "text2voxel-not-installed")
 
 import numpy as np  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

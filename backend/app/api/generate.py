@@ -55,13 +55,13 @@ def generate_images(payload: ImageGenerationRequest) -> Job:
 
 @router.post("/generate/3d", response_model=Job, status_code=status.HTTP_202_ACCEPTED)
 def generate_3d(payload: ThreeDGenerationRequest) -> Job:
-    """Reconstruct a 3D model from the project's views."""
+    """Reconstruct a 3D model from the project's views (or its prompt, for a text provider)."""
     project_id = validate_project_id(payload.project_id)
     repository.get(project_id)
 
     def worker(context: JobContext) -> dict:
         return orchestrator.generate_3d(
-            context, project_id, payload.provider, payload.resolution
+            context, project_id, payload.provider, payload.resolution, seed=payload.seed
         )
 
     return manager.submit(

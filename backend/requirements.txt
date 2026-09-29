@@ -36,6 +36,12 @@ Pillow>=10.4
 # "target faces" control silently does nothing.
 fast-simplification>=0.1.7
 
+# --- local text-to-3D (Text2Voxel-64) ---
+# CPU inference with onnxruntime; no torch needed. The ~55 MB of model files
+# are fetched separately by scripts/install_text2voxel.py.
+onnxruntime>=1.18
+tokenizers>=0.15
+
 # --- system introspection ---
 psutil>=6.0
 

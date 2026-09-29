@@ -249,6 +249,7 @@ class TrimeshProcessor(MeshProcessor):
         fill_holes: bool = True,
         remove_duplicates: bool = True,
         recompute_normals: bool = True,
+        align_axes: bool = True,
         progress: ProgressCallback = _noop_progress,
     ) -> ModelResult:
         started = time.time()
@@ -259,10 +260,14 @@ class TrimeshProcessor(MeshProcessor):
         before = {"vertices": len(mesh.vertices), "faces": len(mesh.faces)}
         operations: list[str] = []
 
-        progress(0.12, "Aligning to principal axes")
-        alignment = align_to_principal_axes(mesh)
-        if alignment.get("aligned"):
-            operations.append("aligned to principal axes")
+        if align_axes:
+            progress(0.12, "Aligning to principal axes")
+            alignment = align_to_principal_axes(mesh)
+            if alignment.get("aligned"):
+                operations.append("aligned to principal axes")
+        else:
+            # The generator's own frame is authoritative (front faces +Z).
+            alignment = {"aligned": False, "reason": "kept the generator's canonical frame"}
 
         if remove_duplicates:
             progress(0.2, "Merging duplicate vertices and removing degenerate faces")
