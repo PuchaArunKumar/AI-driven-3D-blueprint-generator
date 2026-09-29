@@ -17,6 +17,7 @@ from app.api import generate, projects, system
 from app.api import jobs as jobs_api
 from app.config import get_settings
 from app.db import init_db
+from app.demo_catalog import adopt_demo_projects
 from app.errors import BlueprintError
 from app.jobs import manager
 from app.logging_conf import configure_logging
@@ -28,8 +29,9 @@ Turn a natural-language product description into a design specification,
 multi-view concept images, a 3D model, an engineering blueprint and
 downloadable CAD assets.
 
-The pipeline is **Text -> Image -> 3D -> GLB -> BLEND**. Every provider
-reports its own availability; nothing is simulated.
+The pipeline is **Text -> Image -> 3D -> GLB -> BLEND**, or **Text -> 3D**
+directly with the Text2Voxel-64 provider. Every provider reports its own
+availability; nothing is simulated.
 """.strip()
 
 
@@ -39,6 +41,12 @@ async def lifespan(app: FastAPI):
     configure_logging(settings.log_level, settings.storage_dir / "logs")
     settings.ensure_directories()
     init_db()
+    # The demo assets are committed but their database rows are not; register
+    # any that are missing so a fresh clone opens onto a populated Gallery.
+    try:
+        adopt_demo_projects()
+    except Exception:  # pragma: no cover - never block startup on the demos
+        logger.warning("Could not register the demo projects", exc_info=True)
     manager.bind_loop(asyncio.get_running_loop())
     logger.info("AI-Driven 3D Blueprint Generator %s ready", __version__)
     logger.info("Storage: %s", settings.storage_dir)

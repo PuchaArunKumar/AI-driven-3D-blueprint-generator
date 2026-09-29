@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Boxes, Download, Loader2, Plus, Search, Trash2 } from 'lucide-react'
-import { ApiError, api } from '../lib/api'
+import { Boxes, Download, Loader2, Plus, Search, Trash2, Wand2 } from 'lucide-react'
+import { ApiError, STATIC_MODE, api } from '../lib/api'
 import type { ProjectSummary } from '../lib/types'
 
 type Filter = 'all' | 'mine' | 'demo'
@@ -66,13 +66,22 @@ export default function Gallery() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Gallery</h1>
           <p className="text-sm text-slate-500 mt-1">
-            {projects.length} project{projects.length === 1 ? '' : 's'} stored locally
+            {projects.length} project{projects.length === 1 ? '' : 's'}{' '}
+            {STATIC_MODE ? 'bundled with this hosted demo (read-only)' : 'stored locally'}
           </p>
         </div>
-        <Link to="/studio" className="btn-primary">
-          <Plus className="w-4 h-4" />
-          New design
-        </Link>
+        {STATIC_MODE ? (
+          // No backend to save a project to - the in-browser model is the way in.
+          <Link to="/generate" className="btn-primary">
+            <Wand2 className="w-4 h-4" />
+            Text → 3D
+          </Link>
+        ) : (
+          <Link to="/studio" className="btn-primary">
+            <Plus className="w-4 h-4" />
+            New design
+          </Link>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3 mb-6">
@@ -86,19 +95,22 @@ export default function Gallery() {
             aria-label="Search projects"
           />
         </div>
-        <div className="flex gap-1 bg-ink-900 border border-ink-700 rounded-lg p-0.5">
-          {(['all', 'mine', 'demo'] as Filter[]).map((option) => (
-            <button
-              key={option}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-colors ${
-                filter === option ? 'bg-ink-800 text-white' : 'text-slate-500 hover:text-slate-300'
-              }`}
-              onClick={() => setFilter(option)}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+        {/* Everything on the hosted demo is a demo, so the filter would do nothing. */}
+        {!STATIC_MODE && (
+          <div className="flex gap-1 bg-ink-900 border border-ink-700 rounded-lg p-0.5">
+            {(['all', 'mine', 'demo'] as Filter[]).map((option) => (
+              <button
+                key={option}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold capitalize transition-colors ${
+                  filter === option ? 'bg-ink-800 text-white' : 'text-slate-500 hover:text-slate-300'
+                }`}
+                onClick={() => setFilter(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -119,14 +131,16 @@ export default function Gallery() {
             {projects.length === 0 ? 'No projects yet' : 'Nothing matches that filter'}
           </p>
           <p className="text-sm text-slate-500 mt-1 mb-5">
-            {projects.length === 0
-              ? 'Create your first design in the Studio.'
-              : 'Try a different search term.'}
+            {projects.length > 0
+              ? 'Try a different search term.'
+              : STATIC_MODE
+                ? 'This build was published without a demo snapshot. Text → 3D still works.'
+                : 'Create your first design in the Studio.'}
           </p>
           {projects.length === 0 && (
-            <Link to="/studio" className="btn-primary">
+            <Link to={STATIC_MODE ? '/generate' : '/studio'} className="btn-primary">
               <Plus className="w-4 h-4" />
-              Start designing
+              {STATIC_MODE ? 'Open Text → 3D' : 'Start designing'}
             </Link>
           )}
         </div>
@@ -199,19 +213,21 @@ export default function Gallery() {
                         <Download className="w-3.5 h-3.5" />
                       </a>
                     )}
-                    <button
-                      className="p-1.5 rounded text-slate-500 hover:text-signal-err transition-colors disabled:opacity-40"
-                      title="Delete project"
-                      aria-label={`Delete ${project.name}`}
-                      disabled={deleting === project.id}
-                      onClick={() => void remove(project)}
-                    >
-                      {deleting === project.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-3.5 h-3.5" />
-                      )}
-                    </button>
+                    {!STATIC_MODE && (
+                      <button
+                        className="p-1.5 rounded text-slate-500 hover:text-signal-err transition-colors disabled:opacity-40"
+                        title="Delete project"
+                        aria-label={`Delete ${project.name}`}
+                        disabled={deleting === project.id}
+                        onClick={() => void remove(project)}
+                      >
+                        {deleting === project.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

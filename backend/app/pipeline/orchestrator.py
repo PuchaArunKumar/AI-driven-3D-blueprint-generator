@@ -4,6 +4,11 @@ Ties the providers together into the documented workflow:
 
     Text -> Design spec -> Multi-view images -> 3D -> Mesh -> CAD -> Export
 
+A text-conditioned 3D provider (Text2Voxel-64) reads the prompt itself, so
+with one of those the multi-view stage is skipped rather than run for nothing:
+
+    Text -> Design spec -> 3D -> Mesh -> CAD -> Export
+
 Each entry point here is a *job worker*: it takes a :class:`~app.jobs.JobContext`,
 reports real progress as it goes, and persists its output to the project before
 returning.
@@ -21,7 +26,7 @@ from app.db import utcnow
 from app.errors import ExportError, GenerationError, NotFoundError, ValidationError
 from app.jobs import JobContext
 from app.pipeline.prompt_parser import parse_prompt
-from app.providers.base import ImageResult
+from app.providers.base import ImageResult, is_text_conditioned
 from app.providers.mesh.trimesh_processor import convert, load_mesh, mesh_statistics
 from app.providers.registry import get_registry
 from app.schemas import (
@@ -88,6 +93,17 @@ def analyse_prompt(project_id: str, prompt: str) -> DesignSpec:
     return spec
 
 
+def _specify(context: JobContext, project_id: str, project) -> DesignSpec:
+    """Run the prompt-analysis and specification stages for a job."""
+    context.start_stage("prompt_analysis")
+    spec = project.design_spec or analyse_prompt(project_id, project.prompt)
+    context.finish_stage("prompt_analysis", f"Object: {spec.object}")
+
+    context.start_stage("design_spec")
+    context.finish_stage("design_spec", f"{len(spec.materials)} material(s) identified")
+    return spec
+
+
 # --------------------------------------------------------------------------
 # Stage 3: multi-view images
 # --------------------------------------------------------------------------
@@ -105,13 +121,7 @@ def generate_images(
     settings = get_settings()
     registry = get_registry()
     project = _project_or_404(project_id)
-
-    context.start_stage("prompt_analysis")
-    spec = project.design_spec or analyse_prompt(project_id, project.prompt)
-    context.finish_stage("prompt_analysis", f"Object: {spec.object}")
-
-    context.start_stage("design_spec")
-    context.finish_stage("design_spec", f"{len(spec.materials)} material(s) identified")
+    spec = _specify(context, project_id, project)
 
     provider = registry.image_provider(provider_name)
     availability = provider.availability()
@@ -186,20 +196,34 @@ def generate_3d(
     project_id: str,
     provider_name: str | None = None,
     resolution: int | None = None,
+    *,
+    seed: int | None = None,
+    image_provider: str | None = None,
 ) -> dict[str, Any]:
-    """Reconstruct a 3D model from the project's generated views."""
+    """Build the project's 3D model.
+
+    Image-based providers reconstruct it from the stored views. A
+    text-conditioned provider generates it from the project's raw prompt -
+    the whole sentence, since colour and material words are part of what the
+    model was trained to read - and needs no views at all. ``seed`` is only
+    used by text-conditioned providers (a random one is drawn and recorded
+    when it is ``None``).
+    """
     settings = get_settings()
     registry = get_registry()
     project = _project_or_404(project_id)
 
     images = _images_from_project(project)
-    if not images:
+    provider = registry.threed_provider(
+        provider_name, allow_text_fallback=not images, image_provider=image_provider
+    )
+    from_text = is_text_conditioned(provider)
+    if not from_text and not images:
         raise ValidationError(
             "Generate the view images before running 3D reconstruction.",
             hint="Use 'Generate Views' first, or upload a reference image.",
         )
 
-    provider = registry.threed_provider(provider_name)
     availability = provider.availability()
     if not availability.available:
         context.fail_stage("reconstruction", availability.reason)
@@ -209,18 +233,29 @@ def generate_3d(
                  "credentials it needs.",
         )
 
-    registry.free_vram_for(provider)
+    if not from_text:
+        # Text2Voxel runs on the CPU; evicting a GPU model for it gains nothing.
+        registry.free_vram_for(provider)
     context.start_stage("reconstruction", f"Using {provider.label}")
     target_dir = project_dir(project_id, demo=project.is_demo)
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    result = provider.generate(
-        images,
-        target_dir,
-        spec=project.design_spec,
-        resolution=resolution or settings.voxel_resolution,
-        progress=context.stage_progress("reconstruction"),
-    )
+    if from_text:
+        result = provider.generate_from_text(  # type: ignore[attr-defined]
+            project.prompt,
+            target_dir,
+            spec=project.design_spec,
+            seed=seed,
+            progress=context.stage_progress("reconstruction"),
+        )
+    else:
+        result = provider.generate(
+            images,
+            target_dir,
+            spec=project.design_spec,
+            resolution=resolution or settings.voxel_resolution,
+            progress=context.stage_progress("reconstruction"),
+        )
     context.check_cancelled()
 
     mesh = load_mesh(result.path)
@@ -236,12 +271,17 @@ def generate_3d(
         extra=metadata,
         exports={"glb": str(result.path)},
     )
+    source = " from the prompt text" if from_text else ""
     repository.append_history(
         project_id, "model_generated",
-        f"{stats.triangles:,} triangles via {provider.label}",
+        f"{stats.triangles:,} triangles via {provider.label}{source}",
         result.metadata,
     )
-    context.finish_stage("reconstruction", f"{stats.triangles:,} triangles")
+    detail = f"{stats.triangles:,} triangles"
+    if from_text and result.metadata.get("warning"):
+        # e.g. the untrained placeholder model - say so where the user looks.
+        detail += f" - {result.metadata['warning']}"
+    context.finish_stage("reconstruction", detail)
     return {
         "model_url": relative_url(result.path),
         "stats": stats.model_dump(mode="json"),
@@ -275,6 +315,10 @@ def process_mesh(
 
     context.start_stage("mesh")
     processor = registry.mesh_processor()
+    # A generator that already emits the canonical frame (front faces +Z) must
+    # not be re-oriented: principal-axis alignment can turn it by 90 or 180
+    # degrees, and the blueprint's "front" view would show a side or the back.
+    reconstruction = (project.project_metadata or {}).get("reconstruction") or {}
     result = processor.process(
         Path(project.model_path),
         project_dir(project_id, demo=project.is_demo),
@@ -283,6 +327,7 @@ def process_mesh(
         fill_holes=fill_holes,
         remove_duplicates=remove_duplicates,
         recompute_normals=recompute_normals,
+        align_axes=not reconstruction.get("canonical_frame", False),
         progress=context.stage_progress("mesh"),
     )
     context.check_cancelled()
@@ -450,10 +495,28 @@ def run_full_pipeline(
     resolution: int | None = None,
     export_formats: list[ExportFormat] | None = None,
 ) -> dict[str, Any]:
-    """Run every stage end to end, as the Studio's single 'Generate' button does."""
+    """Run every stage end to end, as the Studio's single 'Generate' button does.
+
+    When the resolved 3D provider is text-conditioned the image stage is
+    skipped (and reported as such): rendering views that nothing reads would
+    only cost time. With ``threed_provider`` on "auto", that happens when the
+    image provider cannot run but the text-to-3D model is installed.
+    """
     result: dict[str, Any] = {}
-    result["images"] = generate_images(context, project_id, views, image_provider, seed)
-    result["model"] = generate_3d(context, project_id, threed_provider, resolution)
+    provider = get_registry().threed_provider(
+        threed_provider, allow_text_fallback=True, image_provider=image_provider
+    )
+    if is_text_conditioned(provider):
+        _specify(context, project_id, _project_or_404(project_id))
+        reason = f"Not needed - {provider.label} generates the model from the prompt text"
+        context.skip_stage("images", reason)
+        result["images"] = {"skipped": True, "reason": reason}
+        result["model"] = generate_3d(context, project_id, provider.name, resolution,
+                                      seed=seed)
+    else:
+        result["images"] = generate_images(context, project_id, views, image_provider, seed)
+        result["model"] = generate_3d(context, project_id, threed_provider, resolution,
+                                      image_provider=image_provider)
     result["mesh"] = process_mesh(context, project_id)
     result["export"] = export_model(
         context, project_id, export_formats or [ExportFormat.GLB, ExportFormat.STL]

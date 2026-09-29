@@ -32,7 +32,7 @@ from pathlib import Path
 
 import numpy as np
 
-# `common` is inlined above this line by tools/build_kernels.py.
+# `common` is inlined above this line by training/text2voxel/build_kernels.py.
 
 OUT = Path("/kaggle/working")
 TMP = Path("/kaggle/temp") if Path("/kaggle/temp").exists() else Path("/tmp/t2v")

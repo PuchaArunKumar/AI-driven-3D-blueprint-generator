@@ -1,0 +1,26 @@
+{
+  "release": "text2voxel-v1",
+  "repository": "PuchaArunKumar/AI-driven-3D-blueprint-generator",
+  "files": {
+    "text2voxel/decoder.onnx": {
+      "url": "https://github.com/PuchaArunKumar/AI-driven-3D-blueprint-generator/releases/download/text2voxel-v1/decoder.onnx",
+      "sha256": "562698bdfdec5415eb38361fb329566a9e0eb01063d99e377e3dce239ed00850"
+    },
+    "text2voxel/prior.onnx": {
+      "url": "https://github.com/PuchaArunKumar/AI-driven-3D-blueprint-generator/releases/download/text2voxel-v1/prior.onnx",
+      "sha256": "4d530c2be03b989f95ab84d45352b41184a99075910b7f5cb259f946a956401f"
+    },
+    "text2voxel/meta.json": {
+      "url": "https://github.com/PuchaArunKumar/AI-driven-3D-blueprint-generator/releases/download/text2voxel-v1/meta.json",
+      "sha256": "64f66b388cf393ebd1cc20a631c1260ba5a3a789a9f07eaa8032baa73ec8902f"
+    },
+    "minilm/model_quantized.onnx": {
+      "url": "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/751bff37182d3f1213fa05d7196b954e230abad9/onnx/model_quantized.onnx",
+      "sha256": "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1"
+    },
+    "minilm/tokenizer.json": {
+      "url": "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/751bff37182d3f1213fa05d7196b954e230abad9/tokenizer.json",
+      "sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0"
+    }
+  }
+}

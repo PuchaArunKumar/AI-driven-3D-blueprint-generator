@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, CheckCircle2, FlaskConical } from 'lucide-react'
-import { api } from '../lib/api'
+import { STATIC_MODE, api } from '../lib/api'
 import type { SystemStatus } from '../lib/types'
 
 /**
@@ -45,6 +45,18 @@ const TECHNOLOGY: {
     role: 'Learned single-image 3D reconstruction, running locally',
     implemented: true,
     note: 'Runs through the diffusers ShapEImg2ImgPipeline. Selectable as the shap_e 3D provider; recovers object structure a silhouette hull cannot.',
+  },
+  {
+    name: 'Text2Voxel-64 (trained for this project)',
+    role: 'Direct text-to-3D: MiniLM embedding → latent diffusion prior → 64³ voxel VAE decoder → mesh',
+    implemented: true,
+    note: 'Runs in the browser on the Text → 3D page and in the backend as the text2voxel 3D provider, from the same ONNX files. Trained on Text2Shape (ShapeNet chairs and tables, ~75k captions) and ModelNet40: detailed for chairs and tables, coarse for the other categories, and limited to 64³ resolution. The training data is research-use only, so the model is too.',
+  },
+  {
+    name: 'ONNX Runtime (onnxruntime-web / onnxruntime)',
+    role: 'Executes the Text2Voxel and MiniLM graphs',
+    implemented: true,
+    note: 'WebAssembly in the browser, served from this site rather than a CDN; the CPU build in the backend. Both follow the same sampler, checked against a reference latent stored in meta.json.',
   },
   {
     name: 'Trimesh',
@@ -98,7 +110,7 @@ const TECHNOLOGY: {
     name: 'BERT (MiniLM sentence encoder)',
     role: 'Prompt understanding - restructures the object phrase, matches vocabularies by meaning',
     implemented: true,
-    note: 'A 6-layer distilled BERT refines the rule-based parse: it repairs typos and split words ("a electric wheel cchair" becomes "electric wheelchair") and recognises paraphrases. Optional - set SEMANTIC_PROMPT=false and the rules run alone.',
+    note: 'A 6-layer distilled BERT refines the rule-based parse: it repairs typos and split words ("a electric wheel cchair" becomes "electric wheelchair") and recognises paraphrases. Optional - set SEMANTIC_PROMPT=false and the rules run alone. The same encoder (int8 ONNX) conditions Text2Voxel-64.',
   },
   {
     name: 'Open3D',
@@ -109,6 +121,7 @@ const TECHNOLOGY: {
 ]
 
 const LIMITATIONS = [
+  'Text2Voxel-64 is a small model at 64³ voxels. It is detailed only for chairs and tables, knows the other 39 ModelNet categories coarsely, and applies requested dimensions as a uniform scale rather than understanding them.',
   'A visual hull cannot recover concavities that no silhouette reveals - a cup interior or an enclosed cavity will read as solid.',
   'Multi-view consistency is approximate. The views come from independent diffusion samples sharing one identity clause and seed family, not from a multi-view diffusion model.',
   'Exported STEP geometry is a faceted B-rep, not a parametric solid: no feature tree, no sketches, no editable parameters.',
@@ -120,8 +133,10 @@ const LIMITATIONS = [
 ]
 
 const FUTURE = [
-  'Swap the rule-based prompt parser for a fine-tuned transformer or an LLM-backed structured extractor.',
-  'Integrate a learned image-to-3D model (TRELLIS/SLAT) behind the existing provider interface for concave detail.',
+  'Replace the rule-based field extraction with a fine-tuned transformer or an LLM-backed structured extractor; the MiniLM layer already handles the object phrase and vocabulary.',
+  'Run a stronger learned 3D model (TRELLIS/SLAT) locally behind the existing provider interface - today it is reachable only as a hosted endpoint.',
+  'Text2Voxel: higher resolution (sparse voxels or an implicit-surface decoder), more categories with real captions, and training data whose licences allow commercial use.',
+  'Run the in-browser model on WebGPU where the browser supports it.',
   'Add photometric refinement so surface normals and materials come from shading, not just silhouettes.',
   'Parametric reconstruction: fit primitives and constraints to the mesh to produce genuinely editable CAD.',
   'Multi-view diffusion for stronger cross-view identity than a shared prompt and seed can give.',
@@ -186,13 +201,18 @@ FastAPI  (backend)
         │     ├── diffusers (local)   ├── DALL-E   └── Stability
         ├── ThreeDGenerator    images → GLB
         │     ├── visual_hull (local) └── hosted image-to-3D API
+        ├── TextTo3DGenerator  text  → GLB  (text2voxel, ONNX)
         ├── MeshProcessor      GLB   → cleaned GLB
         │     └── trimesh
         └── CADExporter        GLB   → BLEND / STEP / OBJ / STL / PLY
               ├── Blender          └── FreeCAD
         │
         ▼
-SQLite (SQLAlchemy - PostgreSQL-ready)  +  filesystem asset store`}
+SQLite (SQLAlchemy - PostgreSQL-ready)  +  filesystem asset store
+
+Browser only (no backend): Text → 3D page
+        text → MiniLM → diffusion prior → voxel decoder → mesh + blueprint
+        (onnxruntime-web in a Web Worker, files cached by the browser)`}
         </pre>
       </section>
 
@@ -304,6 +324,21 @@ SQLite (SQLAlchemy - PostgreSQL-ready)  +  filesystem asset store`}
           ))}
         </div>
       </section>
+
+      {STATIC_MODE && (
+        <section className="panel p-4">
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            You are viewing the hosted static build: the demo projects are a read-only snapshot
+            and <Link to="/generate" className="text-blueprint-400 hover:underline">Text → 3D</Link>{' '}
+            runs in your browser. Everything else on this page describes the full app, which
+            needs the Python backend -{' '}
+            <Link to="/settings" className="text-blueprint-400 hover:underline">
+              see what that involves
+            </Link>
+            .
+          </p>
+        </section>
+      )}
 
       {status && (
         <section className="panel p-4">

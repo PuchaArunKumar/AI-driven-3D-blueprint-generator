@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { AlertTriangle, Download, FileText } from 'lucide-react'
 import { api } from '../lib/api'
 import type { BlueprintData, TechnicalViewData } from '../lib/types'
@@ -11,12 +12,18 @@ interface Props {
   error?: string | null
   projectName?: string
   isoUrl?: string | null
+  /**
+   * Custom preview/download controls for the combined sheet, for results that
+   * are not backend projects (the in-browser Text → 3D page builds its SVG
+   * locally). Without it the sheet links go to the API for `projectId`.
+   */
+  sheetActions?: (theme: SheetTheme) => ReactNode
 }
 
 const SIZE = 300
 const PAD = 46
 
-type SheetTheme = 'white' | 'blueprint'
+export type SheetTheme = 'white' | 'blueprint'
 
 /** Turn model-space polylines into one SVG path, fitted to the panel. */
 function buildPath(
@@ -194,6 +201,7 @@ export default function BlueprintView({
   error,
   projectName,
   isoUrl,
+  sheetActions,
 }: Props) {
   const [showHidden, setShowHidden] = useState(true)
   const [sheetTheme, setSheetTheme] = useState<SheetTheme>('white')
@@ -303,7 +311,7 @@ export default function BlueprintView({
       </div>
 
       {/* Combined sheet: all three views on one A3 drawing. */}
-      {projectId && (
+      {(projectId || sheetActions) && (
         <div className="panel p-4 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <FileText className="w-4 h-4 text-blueprint-400 mt-0.5 shrink-0" />
@@ -315,7 +323,7 @@ export default function BlueprintView({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={sheetTheme}
               onChange={(event) => setSheetTheme(event.target.value as SheetTheme)}
@@ -325,22 +333,28 @@ export default function BlueprintView({
               <option value="white">White sheet</option>
               <option value="blueprint">Blueprint</option>
             </select>
-            <a
-              href={api.blueprintSheetUrl(projectId, sheetTheme)}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="btn-ghost !py-1.5 !text-xs"
-            >
-              Preview
-            </a>
-            <a
-              href={api.blueprintSheetUrl(projectId, sheetTheme, true)}
-              className="btn-primary !py-1.5 !text-xs"
-              download
-            >
-              <Download className="w-3.5 h-3.5" />
-              Download SVG
-            </a>
+            {sheetActions ? (
+              sheetActions(sheetTheme)
+            ) : projectId ? (
+              <>
+                <a
+                  href={api.blueprintSheetUrl(projectId, sheetTheme)}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="btn-ghost !py-1.5 !text-xs"
+                >
+                  Preview
+                </a>
+                <a
+                  href={api.blueprintSheetUrl(projectId, sheetTheme, true)}
+                  className="btn-primary !py-1.5 !text-xs"
+                  download
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download SVG
+                </a>
+              </>
+            ) : null}
           </div>
         </div>
       )}

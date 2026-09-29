@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
   Boxes,
@@ -11,7 +11,7 @@ import {
   Wand2,
   Wrench,
 } from 'lucide-react'
-import { ApiError, api, watchJob } from '../lib/api'
+import { ApiError, STATIC_MODE, api, watchJob } from '../lib/api'
 import { CARVING_VIEWS } from '../lib/types'
 import type {
   BlueprintData,
@@ -27,6 +27,7 @@ import BlueprintView from '../components/BlueprintView'
 import ExportPanel from '../components/ExportPanel'
 import PipelineStatus from '../components/PipelineStatus'
 import SpecEditor from '../components/SpecEditor'
+import StaticModeNotice from '../components/StaticModeNotice'
 import Viewer3D from '../components/Viewer3D'
 import ViewGallery from '../components/ViewGallery'
 
@@ -40,6 +41,19 @@ const EXAMPLES = [
 type Tab = '3d' | 'blueprint'
 
 export default function Studio() {
+  // The hosted build has no backend; explain that instead of failing requests.
+  if (STATIC_MODE) {
+    return (
+      <StaticModeNotice
+        title="Design Studio"
+        purpose="The Studio turns a description into a design specification, multi-view concept images, a reconstructed 3D model and CAD exports, stage by stage."
+      />
+    )
+  }
+  return <StudioWorkspace />
+}
+
+function StudioWorkspace() {
   const { projectId } = useParams()
   const navigate = useNavigate()
 
@@ -47,7 +61,9 @@ export default function Studio() {
   const [project, setProject] = useState<Project | null>(null)
   const [job, setJob] = useState<Job | null>(null)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<{ message: string; hint?: string } | null>(null)
+  const [error, setError] = useState<{ message: string; hint?: string; code?: string } | null>(
+    null,
+  )
   const [tab, setTab] = useState<Tab>('3d')
   const [blueprint, setBlueprint] = useState<BlueprintData | null>(null)
   const [blueprintLoading, setBlueprintLoading] = useState(false)
@@ -155,7 +171,7 @@ export default function Studio() {
       )
     } catch (cause) {
       const failure = cause as ApiError
-      setError({ message: failure.message, hint: failure.hint })
+      setError({ message: failure.message, hint: failure.hint, code: failure.code })
       setBusy(false)
     }
   }
@@ -203,6 +219,10 @@ export default function Studio() {
 
   const imageProvider = providers.find((p) => p.kind === 'image' && p.available)
   const noImageProvider = providers.length > 0 && !imageProvider
+  // A text-conditioned 3D provider needs no views, so the pipeline still runs.
+  const textProvider = threedProviders.find((p) => p.name === 'text2voxel')
+  // Chosen explicitly, it builds the model from the prompt - "Generate 3D" needs no views.
+  const fromText = Boolean(textProvider) && threedProvider === 'text2voxel'
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 sm:px-6 py-6">
@@ -228,6 +248,8 @@ export default function Studio() {
             <p className="text-slate-400 text-[13px] mt-0.5">
               Install the local Stable Diffusion stack or add an API key in Settings. You can
               still open and export the demo projects from the Gallery.
+              {textProvider &&
+                ' The pipeline can still build a model straight from the text with Text2Voxel-64 - pick it under 3D reconstruction.'}
             </p>
           </div>
         </div>
@@ -239,6 +261,14 @@ export default function Studio() {
           <div className="text-sm flex-1">
             <p className="text-slate-200">{error.message}</p>
             {error.hint && <p className="text-slate-400 text-[13px] mt-0.5">{error.hint}</p>}
+            {error.code === 'network' && (
+              <p className="text-slate-400 text-[13px] mt-0.5">
+                <Link to="/generate" className="text-blueprint-400 hover:underline">
+                  Text → 3D
+                </Link>{' '}
+                works without the backend - the model runs in your browser.
+              </p>
+            )}
           </div>
           <button
             onClick={() => setError(null)}
@@ -249,7 +279,7 @@ export default function Studio() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[380px_1fr] gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-5 items-start">
         {/* --------------------------------------------------- left column */}
         <div className="space-y-5">
           <div className="panel">
@@ -328,6 +358,8 @@ export default function Studio() {
                     Silhouette carving stays faithful to the views but cannot see
                     concavities. A learned model invents plausible structure the views
                     never showed.
+                    {textProvider &&
+                      ' Text2Voxel-64 skips the views and generates the shape from the text alone.'}
                   </p>
                 </div>
               )}
@@ -392,8 +424,12 @@ export default function Studio() {
               </button>
               <button
                 className="btn-subtle !text-xs"
-                disabled={busy || !hasImages}
-                title={hasImages ? undefined : 'Generate views first'}
+                disabled={busy || !(hasImages || fromText)}
+                title={
+                  hasImages || fromText
+                    ? undefined
+                    : 'Generate views first, or pick Text2Voxel-64 under 3D reconstruction'
+                }
                 onClick={() =>
                   void run(() =>
                     api.generate3D({ project_id: project.id, provider: threedProvider }),
@@ -484,7 +520,7 @@ export default function Studio() {
           </div>
 
           {project && (
-            <div className="grid lg:grid-cols-2 gap-5 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
               <ViewGallery
                 images={project.images}
                 busy={busy}

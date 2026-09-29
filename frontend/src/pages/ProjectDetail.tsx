@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Clock, Loader2, PencilLine, Trash2 } from 'lucide-react'
-import { ApiError, api } from '../lib/api'
+import { ApiError, STATIC_MODE, api } from '../lib/api'
 import type { BlueprintData, CapabilityInfo, ExportFormat, Job, Project } from '../lib/types'
 import BlueprintView from '../components/BlueprintView'
 import ExportPanel from '../components/ExportPanel'
@@ -17,6 +17,8 @@ const EVENT_LABEL: Record<string, string> = {
   model_generated: '3D model reconstructed',
   mesh_processed: 'Mesh processed',
   exported: 'Assets exported',
+  demo_registered: 'Demo registered from committed files',
+  static_snapshot: 'Exported for the hosted demo',
 }
 
 export default function ProjectDetail() {
@@ -43,6 +45,8 @@ export default function ProjectDetail() {
       })
       .catch((cause: ApiError) => setError(cause.message))
       .finally(() => setLoading(false))
+    // No backend on the hosted demo: the export panel then offers downloads only.
+    if (STATIC_MODE) return
     api
       .systemStatus()
       .then((status) => setCapabilities(status.capabilities))
@@ -147,15 +151,17 @@ export default function ProjectDetail() {
               </button>
             </div>
           ) : (
-            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-white tracking-tight flex flex-wrap items-center gap-2">
               {project.name}
-              <button
-                className="text-slate-600 hover:text-white transition-colors"
-                onClick={() => setRenaming(true)}
-                aria-label="Rename project"
-              >
-                <PencilLine className="w-4 h-4" />
-              </button>
+              {!STATIC_MODE && (
+                <button
+                  className="text-slate-600 hover:text-white transition-colors"
+                  onClick={() => setRenaming(true)}
+                  aria-label="Rename project"
+                >
+                  <PencilLine className="w-4 h-4" />
+                </button>
+              )}
               {project.is_demo && (
                 <span className="chip border-signal-warn/40 text-signal-warn">Demo Asset</span>
               )}
@@ -164,15 +170,18 @@ export default function ProjectDetail() {
           <p className="mt-1.5 text-sm text-slate-400 max-w-3xl">{project.prompt}</p>
         </div>
 
-        <div className="flex gap-2 shrink-0">
-          <Link to={`/studio/${project.id}`} className="btn-ghost !py-1.5 !text-xs">
-            Open in Studio
-          </Link>
-          <button className="btn-danger !py-1.5 !text-xs" onClick={() => void remove()}>
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
-          </button>
-        </div>
+        {/* Editing needs the backend; the hosted demo is read-only. */}
+        {!STATIC_MODE && (
+          <div className="flex gap-2 shrink-0">
+            <Link to={`/studio/${project.id}`} className="btn-ghost !py-1.5 !text-xs">
+              Open in Studio
+            </Link>
+            <button className="btn-danger !py-1.5 !text-xs" onClick={() => void remove()}>
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -181,7 +190,7 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      <div className="grid lg:grid-cols-[1fr_360px] gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
         <div className="space-y-5">
           <div className="panel overflow-hidden">
             <div className="panel-head">

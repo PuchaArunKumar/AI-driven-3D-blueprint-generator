@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
   Check,
@@ -9,8 +10,10 @@ import {
   Server,
   X,
 } from 'lucide-react'
-import { ApiError, api } from '../lib/api'
+import { ApiError, STATIC_MODE, api } from '../lib/api'
 import type { ProviderInfo, StorageUsage, SystemStatus } from '../lib/types'
+import BrowserCapabilities from '../components/BrowserCapabilities'
+import StaticModeNotice from '../components/StaticModeNotice'
 
 function formatBytes(bytes: number): string {
   if (!bytes) return '0 B'
@@ -59,20 +62,45 @@ function ProviderRow({ provider }: { provider: ProviderInfo }) {
 }
 
 export default function Settings() {
+  // The hosted build has no backend to report on - only this browser.
+  if (STATIC_MODE) {
+    return (
+      <StaticModeNotice
+        title="Settings"
+        purpose="Settings reports the running backend's providers, hardware, export capabilities, storage and configuration."
+      >
+        <BrowserCapabilities />
+      </StaticModeNotice>
+    )
+  }
+  return <BackendSettings />
+}
+
+function BackendSettings() {
   const [status, setStatus] = useState<SystemStatus | null>(null)
   const [storage, setStorage] = useState<StorageUsage | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ApiError | null>(null)
 
   useEffect(() => {
-    api.systemStatus().then(setStatus).catch((cause: ApiError) => setError(cause.message))
+    api.systemStatus().then(setStatus).catch((cause: ApiError) => setError(cause))
     api.storageUsage().then(setStorage).catch(() => undefined)
   }, [])
 
   if (error) {
     return (
-      <div className="mx-auto max-w-2xl py-24 text-center">
-        <AlertTriangle className="w-8 h-8 mx-auto mb-3 text-signal-err" />
-        <p className="text-slate-300">{error}</p>
+      <div className="mx-auto max-w-2xl px-4 sm:px-6 py-16 space-y-8">
+        <div className="text-center">
+          <AlertTriangle className="w-8 h-8 mx-auto mb-3 text-signal-err" />
+          <p className="text-slate-300">{error.message}</p>
+          {error.hint && <p className="mt-1 text-[13px] text-slate-500">{error.hint}</p>}
+          <p className="mt-3 text-[13px] text-slate-400">
+            <Link to="/generate" className="text-blueprint-400 hover:underline">
+              Text → 3D
+            </Link>{' '}
+            still works without the backend - the model runs in your browser.
+          </p>
+        </div>
+        <BrowserCapabilities />
       </div>
     )
   }
@@ -295,6 +323,8 @@ export default function Settings() {
           <span className="font-mono">not set</span> only. Their values never leave the server.
         </p>
       </section>
+
+      <BrowserCapabilities />
     </div>
   )
 }

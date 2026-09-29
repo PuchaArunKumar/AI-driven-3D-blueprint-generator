@@ -9,12 +9,13 @@ import {
   Cpu,
   Download,
   FileBox,
+  Globe,
   Layers,
   Ruler,
   Sparkles,
   Wand2,
 } from 'lucide-react'
-import { api } from '../lib/api'
+import { STATIC_MODE, api } from '../lib/api'
 import type { ProjectSummary } from '../lib/types'
 
 /** Decorative hero geometry - a rotating wireframe, not a generated result. */
@@ -53,6 +54,13 @@ const PIPELINE = [
   { icon: Ruler, title: 'Blueprint', body: 'Orthographic projections traced from the real mesh, with measured dimensions.' },
   { icon: FileBox, title: 'CAD conversion', body: 'Blender imports, repairs and saves a native .blend; FreeCAD writes STEP where installed.' },
   { icon: Download, title: 'Export', body: 'GLB, glTF, OBJ, STL and PLY - every format produced from the actual geometry.' },
+]
+
+/** The in-browser model, stated plainly - including what it is not good at. */
+const TEXT2VOXEL_FACTS = [
+  { title: 'Runs on your device', body: 'MiniLM, a diffusion prior and a voxel decoder execute as WebAssembly in the tab. No backend, nothing uploaded.' },
+  { title: 'Trained for this project', body: 'Text2Shape chairs and tables with human captions, plus the 40 ModelNet categories. Research-use data licences.' },
+  { title: 'Known limits', body: '64³ voxels: detailed for chairs and tables, coarse elsewhere. A blueprint and GLB/STL/OBJ/PLY come with every shape.' },
 ]
 
 const APPLICATIONS = [
@@ -101,9 +109,12 @@ export default function Home() {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/studio" className="btn-primary !px-5 !py-2.5">
-                Start Designing
+              <Link to="/generate" className="btn-primary !px-5 !py-2.5">
+                Try Text → 3D in your browser
                 <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link to="/studio" className="btn-ghost !px-5 !py-2.5">
+                Design Studio
               </Link>
               <Link to="/gallery" className="btn-ghost !px-5 !py-2.5">
                 Explore Demo
@@ -111,7 +122,7 @@ export default function Home() {
             </div>
 
             <p className="mt-6 font-mono text-[11px] text-slate-600 tracking-wide">
-              TEXT → IMAGE → 3D → GLB → BLEND
+              TEXT → IMAGE → 3D → GLB → BLEND · TEXT → 3D IN-BROWSER
             </p>
           </div>
 
@@ -137,6 +148,38 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ---------------------------------------------------- in-browser */}
+      <section className="mx-auto max-w-[1600px] px-4 sm:px-6 pt-16">
+        <div className="panel p-5 sm:p-6 grid lg:grid-cols-[1fr_2fr] gap-6 items-center">
+          <div>
+            <span className="chip border-blueprint-500/40 text-blueprint-400 bg-blueprint-500/10 mb-3">
+              <Globe className="w-3 h-3" />
+              No install needed
+            </span>
+            <h2 className="text-xl sm:text-2xl font-bold text-white">
+              Text2Voxel-64, in your browser
+            </h2>
+            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
+              Type a sentence, get a coloured 3D shape, its blueprint and mesh files. The first
+              run downloads about 70 MB - the model files and the WebAssembly runtime - which
+              your browser then caches.
+            </p>
+            <Link to="/generate" className="btn-primary mt-4">
+              Open Text → 3D
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <ul className="grid sm:grid-cols-3 gap-3">
+            {TEXT2VOXEL_FACTS.map((fact) => (
+              <li key={fact.title} className="rounded-lg border border-ink-700/70 bg-ink-950/50 p-4">
+                <h3 className="font-semibold text-white text-sm">{fact.title}</h3>
+                <p className="mt-1.5 text-[13px] text-slate-400 leading-relaxed">{fact.body}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       {/* -------------------------------------------------------- pipeline */}
       <section className="mx-auto max-w-[1600px] px-4 sm:px-6 py-16">
         <div className="max-w-2xl">
@@ -148,6 +191,20 @@ export default function Home() {
             where a component is unavailable on your machine the interface says so instead of
             pretending.
           </p>
+          {STATIC_MODE && (
+            <p className="mt-3 text-[13px] text-slate-500 border-l-2 border-signal-warn/50 pl-3">
+              This hosted copy is a static site, so the pipeline itself is not running here -
+              the demo projects below are its real output, and{' '}
+              <Link to="/generate" className="text-blueprint-400 hover:underline">
+                Text → 3D
+              </Link>{' '}
+              runs in your browser.{' '}
+              <Link to="/studio" className="text-blueprint-400 hover:underline">
+                How to run the full app
+              </Link>
+              .
+            </p>
+          )}
         </div>
 
         <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -237,7 +294,8 @@ export default function Home() {
             </p>
             <div className="mt-6 flex items-center gap-2 text-[13px] text-slate-500">
               <Cpu className="w-4 h-4 text-blueprint-400 shrink-0" />
-              Runs locally on your own GPU, or against a hosted provider you configure.
+              Runs locally on your own GPU, or against a hosted provider you configure - and the
+              text-to-3D model runs in any modern browser.
             </div>
           </div>
 
